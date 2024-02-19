@@ -12,8 +12,17 @@ import {
 } from './utils/constants';
 import { getParameter } from './utils/get-parameter';
 import { truncate } from './utils/truncate';
+import { Client, Events, GatewayIntentBits } from 'discord.js';
 
 dotenv.config();
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+client.once(Events.ClientReady, (readyClient: Client) => {
+	readyClient && console.log(`Ready! Logged in as ${readyClient.user!.tag}`);
+});
+
+// Log in to Discord with your client's token
+client.login(process.env.DISCORD_TOKEN);
 
 const app: Express = express();
 var urlencodedParser = bodyParser.urlencoded({ extended: false });
