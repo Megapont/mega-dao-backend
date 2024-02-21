@@ -12,7 +12,10 @@ import {
 } from './utils/constants';
 import { getParameter } from './utils/get-parameter';
 import { truncate } from './utils/truncate';
+import cron from 'node-cron';
 import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { getAllDBProposal } from './utils/get-all-proposals';
+import { getCurrentBlockHeight } from './utils/get-current-block-height';
 
 dotenv.config();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -32,6 +35,75 @@ const port = process.env.PORT || 3000;
 
 app.get('/', (req: Request, res: Response) => {
 	res.send('mega dao server');
+});
+
+cron.schedule('*/5 * * * *', async () => {
+	console.log('updating tag...');
+	try {
+		const channel = await DiscordRequest(`channels/${forumChannelID}`, {
+			method: 'GET',
+		});
+		console.log('cron job triggered at', Date.now());
+		const proposals = await getAllDBProposal();
+		if (!proposals) {
+			console.log('no proposals in DB');
+			return;
+		}
+		const validProposals = proposals.filter(
+			(proposal: any) =>
+				proposal.startBlockHeight &&
+				proposal.endBlockHeight &&
+				proposal.threadID,
+		);
+
+		validProposals.forEach(async (proposal: any) => {
+			const currentBlockHeight = await getCurrentBlockHeight();
+			const startBlockHeight = proposal.startBlockHeight;
+			const endBlockHeight = proposal.endBlockHeight;
+
+			const isClosed = currentBlockHeight > endBlockHeight;
+			const isOpen =
+				currentBlockHeight <= endBlockHeight &&
+				currentBlockHeight >= startBlockHeight;
+			const concluded = proposal.concluded;
+			const tagName = concluded
+				? 'Concluded'
+				: isClosed
+				? 'Ready to Execute'
+				: isOpen
+				? 'Live'
+				: 'Pending';
+
+			console.log(
+				tagName,
+				currentBlockHeight,
+				startBlockHeight,
+				endBlockHeight,
+			);
+
+			const tagIds: string[] = channel.available_tags.reduce(
+				(acc: string[], tag: any) => {
+					if (tag.name === 'Proposal' || tag.name === tagName) {
+						acc.push(tag.id);
+					}
+					return acc;
+				},
+				[],
+			);
+			if (proposal.threadID) {
+				await DiscordRequest(`channels/${proposal.threadID}`, {
+					method: 'PATCH',
+					body: {
+						applied_tags: tagIds,
+					},
+				});
+				console.log('tag updated');
+			}
+		});
+	} catch (e: any) {
+		console.error({ e });
+		console.log('error updating tag');
+	}
 });
 
 app.post(
