@@ -173,7 +173,9 @@ app.post(
 										} proposal`,
 										auto_archive_duration: 1440,
 										message: {
-											content: `Heads up! A fresh proposal has just landed.\n proposed by ${truncate(
+											content: `<@&${
+												process.env.DAO_ROLE_ID
+											}> Heads up! A fresh proposal has just landed.\n proposed by ${truncate(
 												transaction.metadata.sender,
 												5,
 												5,
